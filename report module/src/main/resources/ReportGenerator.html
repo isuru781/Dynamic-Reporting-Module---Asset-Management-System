@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dynamic Report Generator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 40px 20px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .report-header {
+      text-align: center;
+      color: white;
+      margin-bottom: 40px;
+    }
+
+    .report-header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+    }
+
+    .report-content {
+      max-width: 900px;
+      margin: auto;
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    label {
+      font-weight: 600;
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 15px;
+      font-family: 'Courier New', monospace;
+      border-radius: 8px;
+      border: 2px solid #e0e0e0;
+      font-size: 0.95rem;
+      resize: vertical;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .hint {
+      margin-top: 10px;
+      padding: 12px;
+      background-color: #fff3cd;
+      border-left: 4px solid #ffc107;
+      font-size: 0.9rem;
+    }
+
+    .button-section {
+      display: flex;
+      gap: 12px;
+      margin: 25px 0;
+    }
+
+    button {
+      padding: 12px 24px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background-color: #667eea;
+      color: white;
+      flex: 1;
+    }
+
+    .btn-secondary {
+      background-color: #6c757d;
+      color: white;
+    }
+
+    .error {
+      background: #f8d7da;
+      padding: 12px;
+      color: #721c24;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+
+    .success {
+      background: #d4edda;
+      padding: 12px;
+      color: #155724;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+
+    .sample-queries code {
+      display: block;
+      background: #f5f5f5;
+      padding: 10px;
+      border-left: 4px solid #667eea;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+
+    @media (max-width: 768px) {
+      .button-section {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="report-header">
+    <h1>📊 Dynamic Report Generator</h1>
+    <p>Enter your SQL query to generate a PDF report</p>
+  </div>
+
+  <div class="report-content">
+
+    <label>SQL Query:</label>
+    <textarea id="query" rows="8"
+      placeholder="SELECT * FROM assets WHERE status = 'Active'"></textarea>
+
+    <div class="hint">
+      ⚠️ Only SELECT queries allowed. Dangerous keywords are blocked.
+    </div>
+
+    <div class="button-section">
+      <button class="btn-primary" onclick="generateReport()">📥 Generate PDF</button>
+      <button class="btn-secondary" onclick="clearQuery()">🗑️ Clear</button>
+    </div>
+
+    <div id="error" class="error" style="display:none;"></div>
+    <div id="success" class="success" style="display:none;"></div>
+
+    <div class="sample-queries">
+      <h3>Sample Queries</h3>
+      <code onclick="loadSample(1)">SELECT * FROM assets WHERE status = 'Active'</code>
+      <code onclick="loadSample(2)">SELECT employee_name, email, department FROM employees</code>
+      <code onclick="loadSample(3)">SELECT location_name, city, state FROM locations</code>
+      <code onclick="loadSample(4)">SELECT * FROM maintenance WHERE cost > 100</code>
+    </div>
+
+  </div>
+
+  <script>
+    const API_URL = "http://localhost:8080/api/reports/download";
+
+    const samples = {
+      1: "SELECT * FROM assets WHERE status = 'Active'",
+      2: "SELECT employee_name, email, department FROM employees",
+      3: "SELECT location_name, city, state FROM locations",
+      4: "SELECT * FROM maintenance WHERE cost > 100"
+    };
+
+    function loadSample(id) {
+      document.getElementById("query").value = samples[id];
+      hideMessages();
+    }
+
+    function clearQuery() {
+      document.getElementById("query").value = "";
+      hideMessages();
+    }
+
+    function hideMessages() {
+      document.getElementById("error").style.display = "none";
+      document.getElementById("success").style.display = "none";
+    }
+
+    async function generateReport() {
+      hideMessages();
+      const query = document.getElementById("query").value.trim();
+
+      if (!query) {
+        showError("Please enter a SQL query.");
+        return;
+      }
+
+      try {
+        const response = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query })
+        });
+
+        const blob = await response.blob();
+
+        if (blob.type === "text/plain") {
+          const text = await blob.text();
+          showError(text);
+          return;
+        }
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "report.pdf";
+        a.click();
+        window.URL.revokeObjectURL(url);
+
+        showSuccess("Report downloaded successfully!");
+      } catch (err) {
+        showError("Failed to generate report.");
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById("error");
+      el.innerText = msg;
+      el.style.display = "block";
+    }
+
+    function showSuccess(msg) {
+      const el = document.getElementById("success");
+      el.innerText = msg;
+      el.style.display = "block";
+    }
+  </script>
+
+</body>
+</html>
